@@ -1,16 +1,11 @@
 module Brainz
   class Neuron
     attr_reader :output, :weights, :layer, :bias, :delta
-    attr_accessor :transfer
     
     LEARNING_RATE = 0.5
     
-    HARD_LIMIT_FUNCTION = ->(v) { v < 0.5 ? 0 : 1 }
-    SIGMOID_FUNCTION = ->(v) { 1 / (1 + Math.exp(-v)) }
-
     def initialize(layer)
       @layer = layer
-      @transfer = HARD_LIMIT_FUNCTION
     end
     
     def initialize_weights
@@ -30,15 +25,15 @@ module Brainz
       else
         output = bias
         prev_layer.each.with_index do |neuron, i|
-          output += weights[i] * input
+          output += weights[i] * neuron.output
         end
-        @output = transfer.call(output)
+        @output = layer.network.transfer_function.call(output)
       end
     end
     
-    def calculate_delta(error_factor)
-      @delta = output * (1 - output) * error_factor
-      debug "Neuron in layer #{layer.id} calculating with #{error_factor}: #{@delta}"
+    def calculate_delta(expected_value = nil)
+      @delta = output * (1 - output) * error_factor(expected_value)
+      debug "Neuron in layer #{layer.id} calculating with #{error_factor(expected_value)}: #{@delta}"
     end
     
     def adapt
@@ -46,6 +41,18 @@ module Brainz
       debug "Neuron in layer #{layer.id} adapting: #{@bias}"
       prev_layer.each.with_index do |neuron, i|
         @weights[i] += LEARNING_RATE * neuron.output * delta
+      end
+    end
+    
+    protected
+    
+    def error_factor(expected_value = nil)
+      if layer.last? && expected_value
+        expected_value - output
+      else
+        next_layer.map.with_index do |neuron, i|
+          neuron.delta * neuron.weights[i]
+        end.inject(:+)
       end
     end
   end

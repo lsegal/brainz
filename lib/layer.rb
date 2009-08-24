@@ -2,18 +2,17 @@ module Brainz
   class Layer
     include Enumerable
     
-    attr_accessor :prev_layer, :next_layer
-    attr_reader :neurons, :id
+    attr_reader :network, :neurons, :id, :prev_layer, :next_layer
 
-    @@layer_num = 0
-    
-    def initialize(num_neurons)
+    def initialize(network, num_neurons)
+      @network = network
       @neurons = ([nil]*num_neurons).map { Neuron.new(self) }
-      @id = (@@layer_num += 1)
+      @id = network.layers.size + 1
     end
     
-    def prev_layer=(prev)
-      @prev_layer = prev
+    def connect_layers(prev_layer, next_layer)
+      @prev_layer = prev_layer
+      @next_layer = next_layer
       each(&:initialize_weights)
     end
     
@@ -29,23 +28,19 @@ module Brainz
       last? ? output : next_layer.fire(output)
     end
     
-    def adapt(expected_output = nil)
-      debug "Layer #{id} ADAPT with #{expected_output.inspect}"
+    def calculate_deltas(expected_output = nil)
+      return if first?
       if last?
-        each.with_index do |neuron, i| 
-          neuron.calculate_delta(expected_output[i] - neuron.output)
-        end
+        each.with_index {|n, i| n.calculate_delta(expected_output[i]) }
+      else
+        each(&:calculate_delta)
       end
-
-      return if first? || prev_layer.first?
-      prev_layer.each.with_index do |neuron, i| 
-        error_factor = map {|t| t.weights[i] * t.delta }.inject(:+)
-        neuron.calculate_delta(error_factor)
-      end
-      
-      prev_layer.adapt
-      prev_layer.each(&:adapt)
-      each(&:adapt) if last?
+    end
+    
+    def adapt
+      return if first?
+      debug "Layer #{id} ADAPTING"
+      each(&:adapt)
     end
     
     def first?
